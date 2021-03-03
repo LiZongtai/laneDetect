@@ -18,5 +18,6 @@
         android:text="detect"
         tools:layout_editor_absoluteX="625dp"
         tools:layout_editor_absoluteY="344dp"
-        android:onClick="detect"/>
+        android:onClick="detect"
+        tools:ignore="MissingConstraints" />
 </androidx.constraintlayout.widget.ConstraintLayout>

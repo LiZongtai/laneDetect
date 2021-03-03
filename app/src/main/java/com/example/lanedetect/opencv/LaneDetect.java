@@ -95,7 +95,7 @@ public class LaneDetect {
         this.right_fity = new int[this.height];
     }
 
-    public void laneDetection() {
+    public Mat laneDetection() {
         ArrayList<Point> roi_points = get_roi_points((float) this.width, (float) this.height);
         ArrayList<Point> desired_roi_points = get_desired_roi_points(this.width, this.height, this.padding);
         // Perform thresholding to isolate lane lines
@@ -105,8 +105,9 @@ public class LaneDetect {
         // Generate the image histogram to serve as a starting point
         // for finding lane line pixels
         byte[] byteBuffer = matToByteBuffer(warped_frame);
-        get_lane_line_indices_sliding_windows(warped_frame);
+        Mat sliding_windows_mat= get_lane_line_indices_sliding_windows(warped_frame);
         get_lane_points();
+        return getLanePlot();
     }
 
     public Mat getLanePlot(){
@@ -182,7 +183,7 @@ public class LaneDetect {
      */
     private static ArrayList<Point> get_roi_points(float w, float h) {
         float width_top = 0.4f;
-        float width_bottom = 0.02f;
+        float width_bottom = 0.04f;
         float height_top = 0.54f;
         ArrayList<Point> roi_arr = new ArrayList<>();
         roi_arr.add(new Point((float) (w * width_top), (float) (h * height_top)));  // Top-left corner
@@ -288,7 +289,7 @@ public class LaneDetect {
         return lane_line_markings;
     }
 
-    private void get_lane_line_indices_sliding_windows(Mat warped_frame) {
+    private Mat get_lane_line_indices_sliding_windows(Mat warped_frame) {
         // Sliding window width is +/- margin
         int margin = this.margin;
         Mat frame_sliding_window = new Mat();
@@ -315,6 +316,7 @@ public class LaneDetect {
         // which we will continue to update
         int[] histogram = calculate_histogram(warped_frame);
         int[] base = histogram_peak(histogram);
+        System.out.println(Arrays.toString(base));
         int leftx_current = base[0];
         int rightx_current = base[1];
         // Go through one window at a time
@@ -326,10 +328,10 @@ public class LaneDetect {
             int win_xleft_high = leftx_current + margin;
             int win_xright_low = rightx_current - margin;
             int win_xright_high = rightx_current + margin;
-//            Rect rect_left = new Rect(new Point(win_xleft_low, win_y_low), new Point(win_xleft_high, win_y_high));
-//            Rect rect_right = new Rect(new Point(win_xright_low, win_y_low), new Point(win_xright_high, win_y_high));
-//            Imgproc.rectangle(frame_sliding_window, rect_left, new Scalar(255, 255, 255), 2);
-//            Imgproc.rectangle(frame_sliding_window, rect_right, new Scalar(255, 255, 255), 2);
+            Rect rect_left = new Rect(new Point(win_xleft_low, win_y_low), new Point(win_xleft_high, win_y_high));
+            Rect rect_right = new Rect(new Point(win_xright_low, win_y_low), new Point(win_xright_high, win_y_high));
+            Imgproc.rectangle(frame_sliding_window, rect_left, new Scalar(255, 255, 255), 2);
+            Imgproc.rectangle(frame_sliding_window, rect_right, new Scalar(255, 255, 255), 2);
             // Identify the nonzero pixels in x and y within the window
             List<Integer> good_left_inds = new ArrayList<>();
             List<Integer> good_right_inds = new ArrayList<>();
@@ -376,6 +378,7 @@ public class LaneDetect {
         //fit x=ay^2+by+c
         this.left_fit = polynomial_curve_fit(leftx, lefty, 2);
         this.right_fit = polynomial_curve_fit(rightx, righty, 2);
+        return frame_sliding_window;
         // Create the x and y values to plot on the image
     }
 }

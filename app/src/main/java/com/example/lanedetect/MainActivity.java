@@ -42,7 +42,7 @@ public class MainActivity extends AppCompatActivity {
         int screenHeight = dm.heightPixels;
         System.out.println("width:"+screenWidth+", height: "+screenHeight);
         imageView=findViewById(R.id.imageView);
-        @SuppressLint("ResourceType") InputStream stream = getResources().openRawResource(R.drawable.test);
+        @SuppressLint("ResourceType") InputStream stream = getResources().openRawResource(R.drawable.test5);
         bitmap = BitmapFactory.decodeStream(stream);
         imageView.setImageBitmap(bitmap);
     }
