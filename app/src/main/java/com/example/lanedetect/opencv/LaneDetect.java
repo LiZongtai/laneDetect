@@ -1,10 +1,12 @@
 package com.example.lanedetect.opencv;
 
 import android.graphics.Bitmap;
+import android.os.Build;
 
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
+import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
@@ -105,18 +107,18 @@ public class LaneDetect {
         // Generate the image histogram to serve as a starting point
         // for finding lane line pixels
         byte[] byteBuffer = matToByteBuffer(warped_frame);
-        Mat sliding_windows_mat= get_lane_line_indices_sliding_windows(warped_frame);
+        Mat sliding_windows_mat = get_lane_line_indices_sliding_windows(warped_frame);
         get_lane_points();
-        return getLanePlot();
+        return sliding_windows_mat;
     }
 
-    public Mat getLanePlot(){
-        Mat mat=bitmapToMat(this.orig_frame);
+    public Mat getLanePlot() {
+        Mat mat = bitmapToMat(this.orig_frame);
         ArrayList<MatOfPoint> polygons = new ArrayList<>();
         polygons.clear();
-        if(this.points!=null){
+        if (this.points != null) {
             polygons.add(new MatOfPoint(this.points));
-            Imgproc.fillPoly(mat, polygons,new Scalar(0, 0, 255));
+            Imgproc.fillPoly(mat, polygons, new Scalar(0, 0, 255));
         }
         return mat;
     }
@@ -142,17 +144,17 @@ public class LaneDetect {
                 int left_x_temp = (int) (this.left_fit.get(2) * y[i] * y[i] + this.left_fit.get(1) * y[i] + left_fit.get(0));
                 int right_x_temp = (int) (this.right_fit.get(2) * y[i] * y[i] + this.right_fit.get(1) * y[i] + right_fit.get(0));
                 double v_left = a20 * left_x_temp + a21 * i + a22;
-                this.left_fitx[i] = (int)((a00 * left_x_temp + a01 * i + a02) / v_left);
-                this.left_fity[i] = (int)((a10 * left_x_temp + a11 * i + a12) / v_left);
+                this.left_fitx[i] = (int) ((a00 * left_x_temp + a01 * i + a02) / v_left);
+                this.left_fity[i] = (int) ((a10 * left_x_temp + a11 * i + a12) / v_left);
                 double v_right = a20 * right_x_temp + a21 * i + a22;
-                this.right_fitx[i] = (int)((a00 * right_x_temp + a01 * i + a02) / v_right);
-                this.right_fity[i] = (int)((a10 * right_x_temp + a11 * i + a12) / v_right);
+                this.right_fitx[i] = (int) ((a00 * right_x_temp + a01 * i + a02) / v_right);
+                this.right_fity[i] = (int) ((a10 * right_x_temp + a11 * i + a12) / v_right);
             }
         }
-        this.points = new Point[this.height*2];
-        for(int i=0;i<this.height;i++){
-            this.points[2*i]=new Point(this.left_fitx[i],this.left_fity[i]);
-            this.points[2*i+1]=new Point(this.right_fitx[i],this.right_fity[i]);
+        this.points = new Point[this.height * 2];
+        for (int i = 0; i < this.height; i++) {
+            this.points[2 * i] = new Point(this.left_fitx[i], this.left_fity[i]);
+            this.points[2 * i + 1] = new Point(this.right_fitx[i], this.right_fity[i]);
         }
 //        System.out.println("transformation_matrix:"+transformation_matrix.size());
     }
@@ -314,9 +316,13 @@ public class LaneDetect {
         ArrayList<Integer> right_lane_inds = new ArrayList<Integer>();
         // Current positions for pixel indices for each window,
         // which we will continue to update
-        int[] histogram = calculate_histogram(warped_frame);
-        int[] base = histogram_peak(histogram);
-        System.out.println(Arrays.toString(base));
+        // hough变换
+        Mat hough = new Mat();
+        Imgproc.HoughLinesP(warped_frame, hough, 2, Math.PI / 180, 50, 50, 50);
+//        int[] histogram = calculate_histogram(warped_frame);
+//        int[] base = histogram_peak(histogram);
+        int[] base = calculate_lines(hough);
+        System.out.println("hough bases:" + Arrays.toString(base));
         int leftx_current = base[0];
         int rightx_current = base[1];
         // Go through one window at a time
@@ -380,5 +386,42 @@ public class LaneDetect {
         this.right_fit = polynomial_curve_fit(rightx, righty, 2);
         return frame_sliding_window;
         // Create the x and y values to plot on the image
+    }
+
+    private int[] calculate_lines(Mat lines) {
+        System.out.println("lines length: " + lines.size());
+        ArrayList<Integer> points_x_right = new ArrayList<>();
+        ArrayList<Integer> points_x_left=new ArrayList<>();
+        if (lines.cols() > 0) {
+            for (int i = 0; i < lines.rows(); i++) {
+                double[] l = lines.get(i, 0);
+//                System.out.println("l: " + Arrays.toString(l));
+                if (Math.cos((l[1] - l[3]) / (l[0] - l[2])) > 0.5d) {
+//                    Point p1 = new Point(l[0], l[1]);
+//                    Point p2 = new Point(l[2], l[3]);
+//                System.out.println("p1: " + p1.x + "," + p1.y + " || p2: " + p2.x + "," + p2.y);
+                    points_x_left.add((int)((l[0]+l[2])/2));
+                }else if(Math.cos((l[1] - l[3]) / (l[0] - l[2])) < -0.5d){
+                    points_x_right.add((int)((l[0]+l[2])/2));
+                }
+            }
+        }
+        int[] base = new int[2];
+        System.out.println("points x left length: " + points_x_left.size());
+        System.out.println("points x right length: " + points_x_right.size());
+        int sum_left=0;
+        int sum_right=0;
+        for(int i = 0; i < points_x_left.size(); ++i)
+        {
+            sum_left = points_x_left.get(i)+sum_left;
+        }
+        //求平均数
+        base[0] = sum_left/points_x_left.size();
+        for(int i = 0; i < points_x_right.size(); ++i)
+        {
+            sum_right = points_x_right.get(i)+sum_right;
+        }
+        base[1] = sum_right/points_x_right.size();
+        return base;
     }
 }
